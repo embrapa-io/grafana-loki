@@ -1,0 +1,33 @@
+services:
+  loki:
+    image: grafana/loki
+    volumes:
+      - loki_data:/data/loki
+    ports:
+      - ${PORT_LOKI}:3100
+    healthcheck:
+      test: wget --quiet --tries=1 --output-document=- http://localhost:3100/ready | grep -q -w ready || exit 1
+      start_period: 10s
+      interval: 5s
+      timeout: 2s
+      retries: 6
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+    ports:
+      - ${PORT_GRAFANA}:3000
+
+volumes:
+  loki_data:
+    name: ${VOLUME_LOKI}
+    external: true
+
+  grafana_data:
+    name: ${VOLUME_GRAFANA}
+    external: true
