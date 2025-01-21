@@ -27,12 +27,6 @@ services:
       - FORWARD_PORT=3100
       - BASIC_USERNAME=${USERNAME}
       - BASIC_PASSWORD=${PASSWORD}
-    healthcheck:
-      test: curl --fail -s http://localhost:80/ || exit 1
-      interval: 1m30s
-      timeout: 10s
-      start_period: 30s
-      retries: 4
 
   grafana:
     image: grafana/grafana
