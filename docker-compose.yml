@@ -1,10 +1,10 @@
 services:
   loki:
     image: grafana/loki
+    container_name: loki
+    restart: unless-stopped
     volumes:
       - loki_data:/data/loki
-    ports:
-      - ${PORT_LOKI}:3100
     healthcheck:
       test: wget --quiet --tries=1 --output-document=- http://localhost:3100/ready | grep -q -w ready || exit 1
       start_period: 10s
@@ -12,9 +12,32 @@ services:
       timeout: 2s
       retries: 6
 
+  nginx:
+    build:
+      context: .
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - ${PORT_LOKI}:80
+    depends_on:
+      loki:
+        condition: service_healthy
+    environment:
+      - FORWARD_HOST=loki
+      - FORWARD_PORT=3100
+      - BASIC_USERNAME=${USERNAME}
+      - BASIC_PASSWORD=${PASSWORD}
+    healthcheck:
+      test: curl --fail -s http://localhost:80/ || exit 1
+      interval: 1m30s
+      timeout: 10s
+      start_period: 30s
+      retries: 4
+
   grafana:
     image: grafana/grafana
     container_name: grafana
+    restart: unless-stopped
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
