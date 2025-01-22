@@ -32,6 +32,10 @@ services:
     image: grafana/grafana
     container_name: grafana
     restart: unless-stopped
+    environment:
+      GF_AUTH_GITLAB_AUTH_URL:  https://git.embrapa.io/oauth/authorize
+      GF_AUTH_GITLAB_TOKEN_URL: https://git.embrapa.io/oauth/token
+      GF_AUTH_GITLAB_API_URL:   https://git.embrapa.io/api/v4
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
