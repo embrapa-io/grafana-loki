@@ -13,5 +13,7 @@ cp .env.example .env
 docker-compose up --force-recreate --build --remove-orphans --wait
 ```
 
-https://grafana.com/docs/loki/latest/send-data/docker-driver/
-https://grafana.com/docs/loki/latest/send-data/docker-driver/configuration/
+## Referências
+
+- https://grafana.com/docs/loki/latest/send-data/docker-driver/
+- https://grafana.com/docs/loki/latest/send-data/docker-driver/configuration/
