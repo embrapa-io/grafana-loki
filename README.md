@@ -17,3 +17,4 @@ docker-compose up --force-recreate --build --remove-orphans --wait
 
 - https://grafana.com/docs/loki/latest/send-data/docker-driver/
 - https://grafana.com/docs/loki/latest/send-data/docker-driver/configuration/
+- https://www.drailing.net/2020/06/running-loki-and-grafana-on-docker-swarm/
