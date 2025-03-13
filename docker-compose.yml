@@ -4,6 +4,7 @@ services:
     container_name: loki
     restart: unless-stopped
     volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
       - loki_data:/data/loki
     healthcheck:
       test: wget --quiet --tries=1 --output-document=- http://localhost:3100/ready | grep -q -w ready || exit 1
