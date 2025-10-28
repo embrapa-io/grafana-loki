@@ -16,14 +16,15 @@ common:
       store: inmemory
 
 limits_config:
-  retention_period: 7d
+  retention_period: 72h
 
 compactor:
   working_directory: /tmp/loki/retention
   retention_enabled: true
-  retention_delete_delay: 2h
+  retention_delete_delay: 30m
   delete_request_store: filesystem
   deletion_mode: filter-and-delete
+  compaction_interval: 10m
 
 schema_config:
   configs:
