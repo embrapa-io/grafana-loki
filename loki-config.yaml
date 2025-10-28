@@ -23,6 +23,7 @@ compactor:
   retention_enabled: true
   retention_delete_delay: 2h
   delete_request_store: filesystem
+  deletion_mode: filter-and-delete
 
 schema_config:
   configs:
