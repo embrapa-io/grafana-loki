@@ -1,11 +1,11 @@
 services:
   loki:
-    image: grafana/loki
+    image: grafana/loki:3.4.1
     container_name: loki
     restart: unless-stopped
     volumes:
       - ./loki-config.yaml:/etc/loki/local-config.yaml
-      - loki_data:/data/loki
+      - loki_data:/loki
     healthcheck:
       test: wget --quiet --tries=1 --output-document=- http://localhost:3100/ready | grep -q -w ready || exit 1
       start_period: 10s
@@ -30,7 +30,7 @@ services:
       - BASIC_PASSWORD=${PASSWORD}
 
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:11.5.2
     container_name: grafana
     restart: unless-stopped
     environment:
@@ -39,6 +39,7 @@ services:
       GF_AUTH_GITLAB_TOKEN_URL: ${URL_GITLAB}/oauth/token
       GF_AUTH_GITLAB_API_URL: ${URL_GITLAB}/api/v4
     volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
       - grafana_data:/var/lib/grafana
     depends_on:
       loki:
