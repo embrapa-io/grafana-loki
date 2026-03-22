@@ -12,6 +12,8 @@ services:
       interval: 5s
       timeout: 2s
       retries: 6
+    networks:
+      - stack
 
   nginx:
     build:
@@ -28,6 +30,8 @@ services:
       - FORWARD_PORT=3100
       - BASIC_USERNAME=${USERNAME}
       - BASIC_PASSWORD=${PASSWORD}
+    networks:
+      - stack
 
   grafana:
     image: grafana/grafana:11.5.2
@@ -46,6 +50,55 @@ services:
         condition: service_healthy
     ports:
       - ${PORT_GRAFANA}:3000
+    networks:
+      - stack
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: valkey
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - stack
+
+  mcp:
+    build: ./mcp
+    container_name: mcp-loki
+    ports:
+      - "${PORT_MCP:-3001}:3000"
+    environment:
+      NODE_ENV: production
+      LOKI_URL: http://loki:3100
+      LOKI_LABEL_NAME: ${LOKI_LABEL_NAME:-compose_project}
+      BACKEND_API_URL: ${MCP_BACKEND_API_URL}
+      MCP_SERVER_URL: ${MCP_SERVER_URL}
+      MCP_CORS_ORIGINS: ${MCP_CORS_ORIGINS:-}
+      SESSION_SECRET: ${MCP_SESSION_SECRET}
+      ACCESS_TOKEN_TTL: ${MCP_ACCESS_TOKEN_TTL:-604800}
+      REFRESH_TOKEN_TTL: ${MCP_REFRESH_TOKEN_TTL:-2592000}
+      VALKEY_URL: redis://valkey:6379
+      LOG_LEVEL: ${MCP_LOG_LEVEL:-info}
+    volumes:
+      - ${VOLUME_MCP:-mcp_data}:/data
+    depends_on:
+      loki:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - stack
 
 volumes:
   loki_data:
@@ -55,3 +108,8 @@ volumes:
   grafana_data:
     name: ${VOLUME_GRAFANA}
     external: true
+
+  mcp_data:
+
+networks:
+  stack:

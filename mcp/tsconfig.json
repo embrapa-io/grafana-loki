@@ -1,0 +1,31 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "lib": ["ESNext"],
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "strict": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "skipLibCheck": true,
+        "outDir": "./dist",
+        "declaration": true,
+        "sourceMap": true,
+        "noImplicitReturns": true,
+        "noFallthroughCasesInSwitch": true,
+        "noUncheckedIndexedAccess": true,
+        "types": ["node"],
+        "paths": {
+            "@modelcontextprotocol/server": ["./packages/server/src/index.ts"],
+            "@modelcontextprotocol/server/_shims": ["./packages/server/src/shimsNode.ts"],
+            "@modelcontextprotocol/node": ["./packages/middleware/node/src/index.ts"],
+            "@modelcontextprotocol/express": ["./packages/middleware/express/src/index.ts"],
+            "@modelcontextprotocol/core": ["./packages/core/src/index.ts"]
+        }
+    },
+    "include": ["src/**/*", "test/**/*"],
+    "exclude": ["node_modules", "dist"]
+}
