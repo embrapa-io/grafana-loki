@@ -23,22 +23,34 @@ export interface StatsLogQLParams {
     labelName?: string;
 }
 
+const MAX_SINCE_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
+
 /**
- * Converte string de duração relativa (ex: "1h", "24h", "7d") para milissegundos.
+ * Converte string de duração relativa (ex: "1h", "24h", "7d", "now-1h") para milissegundos.
+ * Lança erro se exceder 30 dias.
  */
 export function parseSince(since: string): number {
-    const match = since.match(/^(\d+)([mhd])$/);
+    // Suporta formato Grafana-style: "now-1h", "now-24h", "now-7d"
+    const normalized = since.replace(/^now-/, '');
+    const match = normalized.match(/^(\d+)([mhd])$/);
     if (!match) return 60 * 60 * 1000; // default 1h
 
     const value = parseInt(match[1]!, 10);
     const unit = match[2]!;
 
+    let ms: number;
     switch (unit) {
-        case 'm': return value * 60 * 1000;
-        case 'h': return value * 60 * 60 * 1000;
-        case 'd': return value * 24 * 60 * 60 * 1000;
+        case 'm': ms = value * 60 * 1000; break;
+        case 'h': ms = value * 60 * 60 * 1000; break;
+        case 'd': ms = value * 24 * 60 * 60 * 1000; break;
         default: return 60 * 60 * 1000;
     }
+
+    if (ms > MAX_SINCE_MS) {
+        throw new Error('Período máximo: 30d');
+    }
+
+    return ms;
 }
 
 /**

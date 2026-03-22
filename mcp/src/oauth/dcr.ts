@@ -4,7 +4,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import { z } from 'zod';
+import * as z from 'zod/v4';
 import type Database from 'better-sqlite3';
 import type { Logger } from 'pino';
 import { insertClient } from '../db/queries.js';

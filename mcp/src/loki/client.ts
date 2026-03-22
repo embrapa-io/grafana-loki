@@ -14,6 +14,14 @@ import type {
     FormattedLogEntry,
 } from './types.js';
 
+/** Erro específico do Loki para ser capturado e convertido em McpError nas tools */
+export class LokiError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'LokiError';
+    }
+}
+
 const REQUEST_TIMEOUT_MS = 30_000;
 const RETRY_DELAY_MS = 2_000;
 
@@ -75,7 +83,7 @@ export class LokiClient {
 
         if (!res.ok) {
             const body = await res.text().catch(() => '');
-            throw new Error(`Loki query_range falhou (${res.status}): ${body}`);
+            throw new LokiError(`Serviço de logs temporariamente indisponível (query_range ${res.status})`);
         }
 
         return res.json() as Promise<LokiQueryResponse>;
@@ -90,7 +98,7 @@ export class LokiClient {
 
         if (!res.ok) {
             const body = await res.text().catch(() => '');
-            throw new Error(`Loki query falhou (${res.status}): ${body}`);
+            throw new LokiError(`Serviço de logs temporariamente indisponível (query ${res.status})`);
         }
 
         return res.json() as Promise<LokiQueryResponse>;
@@ -104,11 +112,11 @@ export class LokiClient {
 
         if (!res.ok) {
             const body = await res.text().catch(() => '');
-            throw new Error(`Loki label_values falhou (${res.status}): ${body}`);
+            throw new LokiError(`Serviço de logs temporariamente indisponível (label_values ${res.status})`);
         }
 
         const data = (await res.json()) as LokiLabelResponse;
-        return data.data;
+        return Array.isArray(data?.data) ? data.data : [];
     }
 
     async labels(): Promise<string[]> {
@@ -117,11 +125,11 @@ export class LokiClient {
 
         if (!res.ok) {
             const body = await res.text().catch(() => '');
-            throw new Error(`Loki labels falhou (${res.status}): ${body}`);
+            throw new LokiError(`Serviço de logs temporariamente indisponível (labels ${res.status})`);
         }
 
         const data = (await res.json()) as LokiLabelResponse;
-        return data.data;
+        return Array.isArray(data?.data) ? data.data : [];
     }
 }
 
@@ -147,12 +155,16 @@ export function formatLogEntries(
 
     for (const stream of streams) {
         for (const [timestampNs, line] of stream.values) {
-            const timestampMs = Number(BigInt(timestampNs) / 1_000_000n);
-            entries.push({
-                timestamp: new Date(timestampMs).toISOString(),
-                line: truncateLine(line, maxPerLine),
-                labels: stream.stream,
-            });
+            try {
+                const timestampMs = Number(BigInt(timestampNs) / 1_000_000n);
+                entries.push({
+                    timestamp: new Date(timestampMs).toISOString(),
+                    line: truncateLine(line, maxPerLine),
+                    labels: stream.stream,
+                });
+            } catch {
+                // Skip malformed entries (invalid timestamp)
+            }
         }
     }
 

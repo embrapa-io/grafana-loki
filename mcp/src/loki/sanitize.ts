@@ -11,6 +11,7 @@
  */
 export function sanitizeLogQLInput(input: string): string {
     return input
+        .replace(/[\r\n\t]/g, ' ')  // newlines e tabs → espaço (evita quebra de contexto)
         .replace(/[`"\\]/g, '')     // aspas e backticks (escapam de string)
         .replace(/[{}~=!<>]/g, '')  // operadores LogQL (NÃO remover |)
         .slice(0, 200);

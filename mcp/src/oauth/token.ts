@@ -137,7 +137,18 @@ function handleAuthorizationCodeGrant(
         return;
     }
 
-    markSessionUsed(db, session.id);
+    // Atomic: marca sessão como usada com WHERE used = 0 para evitar race condition
+    const markResult = db.prepare(
+        `UPDATE oauth_sessions SET used = 1 WHERE id = ? AND used = 0`
+    ).run(session.id);
+
+    if (markResult.changes === 0) {
+        res.status(400).json({
+            error: 'invalid_grant',
+            error_description: 'Authorization code já utilizado (concorrência)',
+        });
+        return;
+    }
 
     const accessToken = randomUUID();
     const refreshToken = randomUUID();
@@ -159,26 +170,31 @@ function handleAuthorizationCodeGrant(
         // mantém 'unknown'
     }
 
-    insertAccessToken(db, {
-        token: accessToken,
-        client_id,
-        user_jwt: session.user_jwt,
-        jwt_expires_at: session.jwt_expires_at,
-        user_email: userEmail,
-        scope: session.scope,
-        expires_at: accessExpiresAt,
+    // Transação atômica para inserção de tokens
+    const issueTokens = db.transaction(() => {
+        insertAccessToken(db, {
+            token: accessToken,
+            client_id,
+            user_jwt: session.user_jwt,
+            jwt_expires_at: session.jwt_expires_at,
+            user_email: userEmail,
+            scope: session.scope,
+            expires_at: accessExpiresAt,
+        });
+
+        insertRefreshToken(db, {
+            token: refreshToken,
+            client_id,
+            access_token: accessToken,
+            user_jwt: session.user_jwt,
+            jwt_expires_at: session.jwt_expires_at,
+            user_email: userEmail,
+            scope: session.scope,
+            expires_at: refreshExpiresAt,
+        });
     });
 
-    insertRefreshToken(db, {
-        token: refreshToken,
-        client_id,
-        access_token: accessToken,
-        user_jwt: session.user_jwt,
-        jwt_expires_at: session.jwt_expires_at,
-        user_email: userEmail,
-        scope: session.scope,
-        expires_at: refreshExpiresAt,
-    });
+    issueTokens();
 
     logger.info(
         { client_id, user_email: userEmail },
@@ -259,7 +275,19 @@ function handleRefreshTokenGrant(
         return;
     }
 
-    deleteRefreshToken(db, refresh_token);
+    // Atomic: deleta refresh token com WHERE para evitar race condition
+    const deleteResult = db.prepare(
+        `DELETE FROM refresh_tokens WHERE token = ?`
+    ).run(refresh_token);
+
+    if (deleteResult.changes === 0) {
+        res.status(400).json({
+            error: 'invalid_grant',
+            error_description: 'Refresh token já consumido (concorrência)',
+        });
+        return;
+    }
+
     deleteAccessToken(db, storedRefresh.access_token);
 
     const newAccessToken = randomUUID();
@@ -272,26 +300,31 @@ function handleRefreshTokenGrant(
         now + config.REFRESH_TOKEN_TTL * 1000
     ).toISOString();
 
-    insertAccessToken(db, {
-        token: newAccessToken,
-        client_id,
-        user_jwt: storedRefresh.user_jwt,
-        jwt_expires_at: storedRefresh.jwt_expires_at,
-        user_email: storedRefresh.user_email,
-        scope: storedRefresh.scope,
-        expires_at: accessExpiresAt,
+    // Transação atômica para rotação de tokens
+    const rotateTokens = db.transaction(() => {
+        insertAccessToken(db, {
+            token: newAccessToken,
+            client_id,
+            user_jwt: storedRefresh.user_jwt,
+            jwt_expires_at: storedRefresh.jwt_expires_at,
+            user_email: storedRefresh.user_email,
+            scope: storedRefresh.scope,
+            expires_at: accessExpiresAt,
+        });
+
+        insertRefreshToken(db, {
+            token: newRefreshToken,
+            client_id,
+            access_token: newAccessToken,
+            user_jwt: storedRefresh.user_jwt,
+            jwt_expires_at: storedRefresh.jwt_expires_at,
+            user_email: storedRefresh.user_email,
+            scope: storedRefresh.scope,
+            expires_at: refreshExpiresAt,
+        });
     });
 
-    insertRefreshToken(db, {
-        token: newRefreshToken,
-        client_id,
-        access_token: newAccessToken,
-        user_jwt: storedRefresh.user_jwt,
-        jwt_expires_at: storedRefresh.jwt_expires_at,
-        user_email: storedRefresh.user_email,
-        scope: storedRefresh.scope,
-        expires_at: refreshExpiresAt,
-    });
+    rotateTokens();
 
     logger.info(
         { client_id, user_email: storedRefresh.user_email },

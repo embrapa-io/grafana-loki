@@ -43,6 +43,14 @@ describe('loadConfig', () => {
         expect(() => loadConfig()).toThrow();
     });
 
+    it('rejects placeholder SESSION_SECRET', () => {
+        process.env.BACKEND_API_URL = 'https://api.embrapa.io';
+        process.env.MCP_SERVER_URL = 'https://mcp-loki.embrapa.io';
+        process.env.SESSION_SECRET = 'change-me-to-a-random-string';
+
+        expect(() => loadConfig()).toThrow();
+    });
+
     it('parses numeric values from environment', () => {
         process.env.BACKEND_API_URL = 'https://api.embrapa.io';
         process.env.MCP_SERVER_URL = 'https://mcp-loki.embrapa.io';

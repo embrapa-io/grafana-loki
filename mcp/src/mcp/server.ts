@@ -33,8 +33,19 @@ import { registerTailLogsTools } from './tools/tail-logs.js';
 import { registerSearchErrorsTools } from './tools/search-errors.js';
 import { registerLogStatsTools } from './tools/log-stats.js';
 
-const sessions = new Map<string, NodeStreamableHTTPServerTransport>();
+const sessions = new Map<string, { transport: NodeStreamableHTTPServerTransport; createdAt: number }>();
 const sseSessions = new Map<string, SSEServerTransport>();
+
+// Cleanup de sessões Streamable HTTP abandonadas (sem DELETE) — a cada 5 minutos
+const SESSION_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutos
+setInterval(() => {
+    const now = Date.now();
+    for (const [id, entry] of sessions) {
+        if (now - entry.createdAt > SESSION_MAX_AGE_MS) {
+            sessions.delete(id);
+        }
+    }
+}, 5 * 60 * 1000);
 
 export interface SetupMcpOptions {
     app: Express;
@@ -93,8 +104,8 @@ export function setupMcpServer({
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
         if (sessionId && sessions.has(sessionId)) {
-            const transport = sessions.get(sessionId)!;
-            await transport.handleRequest(req, res, req.body);
+            const entry = sessions.get(sessionId)!;
+            await entry.transport.handleRequest(req, res, req.body);
             return;
         }
 
@@ -110,7 +121,7 @@ export function setupMcpServer({
             await transport.handleRequest(req, res, req.body);
 
             if (transport.sessionId) {
-                sessions.set(transport.sessionId, transport);
+                sessions.set(transport.sessionId, { transport, createdAt: Date.now() });
                 logger.info(
                     { session_id: transport.sessionId },
                     'Nova sessão MCP iniciada'
@@ -145,8 +156,8 @@ export function setupMcpServer({
             return;
         }
 
-        const transport = sessions.get(sessionId)!;
-        await transport.handleRequest(req, res);
+        const entry = sessions.get(sessionId)!;
+        await entry.transport.handleRequest(req, res);
     });
 
     // DELETE /mcp — Encerrar sessão (Streamable HTTP)
@@ -154,8 +165,8 @@ export function setupMcpServer({
         const sessionId = req.headers['mcp-session-id'] as string | undefined;
 
         if (sessionId && sessions.has(sessionId)) {
-            const transport = sessions.get(sessionId)!;
-            await transport.handleRequest(req, res);
+            const entry = sessions.get(sessionId)!;
+            await entry.transport.handleRequest(req, res);
             sessions.delete(sessionId);
             logger.info({ session_id: sessionId }, 'Sessão MCP encerrada');
             return;

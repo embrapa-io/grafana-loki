@@ -17,6 +17,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import type { Logger } from 'pino';
 import type Database from 'better-sqlite3';
+import type { Redis } from 'ioredis';
 import type { EnvConfig } from './config/env.js';
 import { createMetadataRouter } from './oauth/metadata.js';
 import { createDcrRouter } from './oauth/dcr.js';
@@ -29,9 +30,10 @@ export interface CreateAppOptions {
     config: EnvConfig;
     logger: Logger;
     db: Database.Database;
+    redis: Redis;
 }
 
-export function createApp({ config, logger, db }: CreateAppOptions): Express {
+export function createApp({ config, logger, db, redis }: CreateAppOptions): Express {
     const app = express();
 
     app.disable('x-powered-by');
@@ -48,7 +50,7 @@ export function createApp({ config, logger, db }: CreateAppOptions): Express {
                     styleSrc: ["'self'", "'unsafe-inline'"],
                     imgSrc: ["'self'", 'data:'],
                     connectSrc: ["'self'"],
-                    formAction: null,
+                    formAction: ["'self'"],
                     frameSrc: ["'none'"],
                     objectSrc: ["'none'"],
                     upgradeInsecureRequests: isDev ? null : [],
@@ -69,7 +71,7 @@ export function createApp({ config, logger, db }: CreateAppOptions): Express {
 
     app.use(
         cors({
-            origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+            origin: allowedOrigins,
             credentials: true,
         })
     );
@@ -126,7 +128,7 @@ export function createApp({ config, logger, db }: CreateAppOptions): Express {
     app.use(createMetadataRouter(config));
     app.use(createDcrRouter({ db, logger }));
     app.use(createAuthorizeRouter({ db, logger }));
-    app.use(createLoginRouter({ db, logger, config }));
+    app.use(createLoginRouter({ db, redis, logger, config }));
     app.use(createTokenRouter({ db, logger, config }));
     app.use(createRevokeRouter({ db, logger }));
 

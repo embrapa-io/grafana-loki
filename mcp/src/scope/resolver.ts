@@ -8,8 +8,16 @@
 import { decodeJwt } from 'jose';
 import { Redis } from 'ioredis';
 import type { Logger } from 'pino';
-import { z } from 'zod';
+import * as z from 'zod/v4';
 import { LokiClient } from '../loki/client.js';
+
+/** Erro de escopo para acesso negado */
+export class ScopeError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'ScopeError';
+    }
+}
 
 const SCOPE_CACHE_PREFIX = 'scope:';
 const BUILDS_CACHE_PREFIX = 'builds:';
@@ -66,8 +74,16 @@ export class ScopeResolver {
         const cacheKey = `${SCOPE_CACHE_PREFIX}${userId}`;
         const cached = await this.redis.get(cacheKey);
         if (cached) {
-            this.logger.debug({ userId, source: 'cache' }, 'Escopo resolvido via cache');
-            return JSON.parse(cached) as string[];
+            try {
+                const parsed = JSON.parse(cached) as unknown;
+                if (Array.isArray(parsed)) {
+                    this.logger.debug({ userId, source: 'cache' }, 'Escopo resolvido via cache');
+                    return parsed as string[];
+                }
+            } catch {
+                this.logger.warn({ userId }, 'Cache de escopo corrompido — ignorando');
+                await this.redis.del(cacheKey);
+            }
         }
 
         // Chama API do backend
@@ -109,7 +125,7 @@ export class ScopeResolver {
      */
     assertProjectAccess(project: string, allowedProjects: string[]): void {
         if (!allowedProjects.includes(project)) {
-            throw new Error(
+            throw new ScopeError(
                 `Acesso negado ao projeto "${project}". Projetos disponíveis: ${allowedProjects.join(', ')}`
             );
         }
@@ -124,7 +140,15 @@ export class ScopeResolver {
         const cacheKey = `${BUILDS_CACHE_PREFIX}${project}`;
         const cached = await this.redis.get(cacheKey);
         if (cached) {
-            return JSON.parse(cached) as BuildInfo[];
+            try {
+                const parsed = JSON.parse(cached) as unknown;
+                if (Array.isArray(parsed)) {
+                    return parsed as BuildInfo[];
+                }
+            } catch {
+                this.logger.warn({ project }, 'Cache de builds corrompido — ignorando');
+                await this.redis.del(cacheKey);
+            }
         }
 
         // Consulta Loki por label values com match de prefixo

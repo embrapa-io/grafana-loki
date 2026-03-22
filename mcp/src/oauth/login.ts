@@ -11,6 +11,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import type Database from 'better-sqlite3';
+import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import type { EnvConfig } from '../config/env.js';
 import {
@@ -21,24 +22,25 @@ import {
 import { renderLoginPage, renderSuccessPage, type LoginPageOptions } from './views/login.js';
 
 const MAX_PIN_ATTEMPTS = 5;
+const PIN_ATTEMPTS_TTL = 600; // 10min — alinhado com TTL da sessão OAuth
+const PIN_ATTEMPTS_PREFIX = 'pin_attempts:';
 
 export interface CreateLoginRouterOptions {
     db: Database.Database;
+    redis: Redis;
     logger: Logger;
     config: EnvConfig;
 }
 
 export function createLoginRouter({
     db,
+    redis,
     logger,
     config,
 }: CreateLoginRouterOptions): Router {
     const router = Router();
 
     const renderLogin = (opts: LoginPageOptions) => renderLoginPage(opts);
-
-    // Contador de tentativas por sessão (em memória)
-    const pinAttempts = new Map<string, number>();
 
     // GET /oauth/login — Renderiza a tela de login
     router.get('/oauth/login', (req: Request, res: Response) => {
@@ -167,7 +169,9 @@ export function createLoginRouter({
                 return;
             }
 
-            const attempts = pinAttempts.get(session_id) ?? 0;
+            const attemptsKey = `${PIN_ATTEMPTS_PREFIX}${session_id}`;
+            const attemptsStr = await redis.get(attemptsKey);
+            const attempts = attemptsStr ? parseInt(attemptsStr, 10) : 0;
             if (attempts >= MAX_PIN_ATTEMPTS) {
                 markSessionUsed(db, session_id);
                 res.status(400).send(
@@ -175,7 +179,7 @@ export function createLoginRouter({
                 );
                 return;
             }
-            pinAttempts.set(session_id, attempts + 1);
+            await redis.set(attemptsKey, (attempts + 1).toString(), 'EX', PIN_ATTEMPTS_TTL);
 
             try {
                 const authResponse = await fetch(
@@ -238,7 +242,7 @@ export function createLoginRouter({
                 logger.info({ email }, 'Autenticação OTP concluída');
 
                 // Limpa contador de tentativas
-                pinAttempts.delete(session_id);
+                await redis.del(`${PIN_ATTEMPTS_PREFIX}${session_id}`);
 
                 // Redireciona de volta ao cliente com authorization code
                 const redirectUri = session.redirect_uri;

@@ -26,6 +26,10 @@ describe('sanitizeLogQLInput', () => {
     it('removes backslashes', () => {
         expect(sanitizeLogQLInput('test\\nvalue')).toBe('testnvalue');
     });
+
+    it('replaces newlines and tabs with spaces', () => {
+        expect(sanitizeLogQLInput('line1\nline2\rline3\ttab')).toBe('line1 line2 line3 tab');
+    });
 });
 
 describe('validateProjectSlug', () => {

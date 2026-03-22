@@ -5,7 +5,9 @@
  * para consulta de logs do Grafana Loki.
  */
 
-import { z } from 'zod';
+import * as z from 'zod/v4';
+
+const PLACEHOLDER_SECRETS = ['change-me-to-a-random-string', 'your-secret-here', 'replace-me'];
 
 const envSchema = z.object({
     /** Ambiente de execução */
@@ -21,7 +23,10 @@ const envSchema = z.object({
     MCP_CORS_ORIGINS: z.string().default(''),
 
     /** Secret para assinatura de sessões OAuth (mín. 32 caracteres) */
-    SESSION_SECRET: z.string().min(32),
+    SESSION_SECRET: z.string().min(32).refine(
+        (val) => !PLACEHOLDER_SECRETS.includes(val),
+        'SESSION_SECRET contém valor placeholder — gere um segredo aleatório'
+    ),
 
     /** TTL do access token em segundos (default: 7 dias) */
     ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(604800),

@@ -36,20 +36,28 @@ const logger = pino({
 // Inicializa banco de dados SQLite
 const db = initDatabase({ dbPath: DB_PATH, logger });
 
-// Cria aplicação Express
-const app = createApp({ config, logger, db });
-
-// Inicializa Valkey EventStore para persistência de sessões MCP
-const eventStore = new ValkeyEventStore({ redisUrl: config.VALKEY_URL, logger });
-
-// Inicializa Loki Client
-const lokiClient = new LokiClient(config.LOKI_URL, logger);
-
-// Inicializa Redis para cache de escopo
+// Inicializa Redis compartilhado (EventStore + ScopeResolver + PIN attempts)
 const redis = new Redis(config.VALKEY_URL, {
     maxRetriesPerRequest: 3,
     retryStrategy: (times: number) => Math.min(times * 100, 3000),
 });
+
+redis.on('connect', () => {
+    logger.info('Valkey conectado');
+});
+
+redis.on('error', (err: Error) => {
+    logger.error({ err }, 'Erro na conexão com Valkey');
+});
+
+// Cria aplicação Express (passa redis para login router)
+const app = createApp({ config, logger, db, redis });
+
+// Inicializa Valkey EventStore com Redis compartilhado
+const eventStore = new ValkeyEventStore({ redis, logger });
+
+// Inicializa Loki Client
+const lokiClient = new LokiClient(config.LOKI_URL, logger);
 
 // Inicializa Scope Resolver
 const scopeResolver = new ScopeResolver({
@@ -63,14 +71,14 @@ const scopeResolver = new ScopeResolver({
 setupMcpServer({ app, config, logger, db, lokiClient, scopeResolver, eventStore });
 
 // Inicia job de cleanup de tokens expirados
-startCleanupJob({
+const cleanupInterval = startCleanupJob({
     db,
     logger,
     intervalMs: config.CLEANUP_INTERVAL_MS,
 });
 
 // Inicia o servidor HTTP
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     logger.info(
         {
             port: PORT,
@@ -81,4 +89,31 @@ app.listen(PORT, () => {
         },
         `Embrapa I/O MCP Loki Server iniciado na porta ${PORT}`
     );
+});
+
+// F23: Graceful shutdown
+process.on('SIGTERM', async () => {
+    logger.info('SIGTERM recebido — iniciando shutdown graceful');
+
+    clearInterval(cleanupInterval);
+
+    server.close(() => {
+        logger.info('HTTP server fechado');
+    });
+
+    try {
+        await redis.quit();
+        logger.info('Redis desconectado');
+    } catch (err) {
+        logger.error({ err }, 'Erro ao desconectar Redis');
+    }
+
+    try {
+        db.close();
+        logger.info('SQLite fechado');
+    } catch (err) {
+        logger.error({ err }, 'Erro ao fechar SQLite');
+    }
+
+    process.exit(0);
 });

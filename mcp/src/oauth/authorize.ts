@@ -60,7 +60,16 @@ export function createAuthorizeRouter({
             return;
         }
 
-        const registeredUris = JSON.parse(client.redirect_uris) as string[];
+        let registeredUris: string[];
+        try {
+            registeredUris = JSON.parse(client.redirect_uris) as string[];
+        } catch {
+            res.status(500).json({
+                error: 'server_error',
+                error_description: 'Dados do cliente corrompidos',
+            });
+            return;
+        }
         if (!registeredUris.includes(redirect_uri)) {
             res.status(400).json({
                 error: 'invalid_redirect_uri',

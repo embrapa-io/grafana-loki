@@ -87,6 +87,20 @@ describe('parseSince', () => {
     it('defaults to 1h for invalid input', () => {
         expect(parseSince('invalid')).toBe(60 * 60 * 1000);
     });
+
+    it('throws for values exceeding 30 days', () => {
+        expect(() => parseSince('31d')).toThrow('Período máximo: 30d');
+        expect(() => parseSince('999d')).toThrow('Período máximo: 30d');
+    });
+
+    it('accepts exactly 30 days', () => {
+        expect(parseSince('30d')).toBe(30 * 24 * 60 * 60 * 1000);
+    });
+
+    it('supports Grafana-style now- prefix', () => {
+        expect(parseSince('now-1h')).toBe(60 * 60 * 1000);
+        expect(parseSince('now-7d')).toBe(7 * 24 * 60 * 60 * 1000);
+    });
 });
 
 describe('sinceToStartTime', () => {

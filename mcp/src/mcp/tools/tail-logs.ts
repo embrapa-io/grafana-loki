@@ -50,14 +50,14 @@ export function registerTailLogsTools(
             const logql = buildLogQL({
                 project: params.project,
                 app: params.app,
-                stage: params.stage,
+                stage: params.stage ?? 'release',
                 labelName: config.LOKI_LABEL_NAME,
             });
 
             const start = Date.now();
             const response = await lokiClient.queryRange({
                 query: logql,
-                start: sinceToStartTime('15m'),
+                start: sinceToStartTime('1h'),
                 limit,
                 direction: 'backward',
             });
@@ -79,7 +79,7 @@ export function registerTailLogsTools(
             );
 
             const result = {
-                query_info: { logql, since: '15m', limit, direction: 'backward' },
+                query_info: { logql, since: '1h', limit, direction: 'backward' },
                 total_lines: entries.length,
                 logs: entries,
             };

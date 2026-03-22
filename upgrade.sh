@@ -13,10 +13,15 @@ if [ ! -f .env ]; then
 fi
 
 VOLUME_LOKI=$(grep '^VOLUME_LOKI=' .env | cut -d= -f2)
+VOLUME_MCP=$(grep '^VOLUME_MCP=' .env | cut -d= -f2)
+VOLUME_VALKEY=$(grep '^VOLUME_VALKEY=' .env | cut -d= -f2)
 
 if [ -z "${VOLUME_LOKI}" ]; then
   echo "ERROR: VOLUME_LOKI not defined in .env"; exit 1
 fi
+
+VOLUME_MCP=${VOLUME_MCP:-mcp_data}
+VOLUME_VALKEY=${VOLUME_VALKEY:-valkey_data}
 
 # Verificar que provisioning existe
 if [ ! -f grafana/provisioning/datasources/loki.yaml ]; then
@@ -46,6 +51,10 @@ if docker volume inspect "${VOLUME_LOKI}" >/dev/null 2>&1; then
 fi
 
 docker volume create "${VOLUME_LOKI}"
+
+echo "--- Criando volumes MCP e Valkey (se necessário)..."
+docker volume create "${VOLUME_MCP}" 2>/dev/null || true
+docker volume create "${VOLUME_VALKEY}" 2>/dev/null || true
 
 echo "--- Subindo stack..."
 docker compose up -d --wait --wait-timeout 120

@@ -17,7 +17,7 @@ const KEY_PREFIX = 'mcp:events:';
 const TTL_SECONDS = 86400; // 24h
 
 export interface ValkeyEventStoreOptions {
-    redisUrl: string;
+    redis: Redis;
     logger: Logger;
 }
 
@@ -25,20 +25,8 @@ export class ValkeyEventStore {
     private redis: Redis;
     private logger: Logger;
 
-    constructor({ redisUrl, logger }: ValkeyEventStoreOptions) {
-        this.redis = new Redis(redisUrl, {
-            maxRetriesPerRequest: 3,
-            retryStrategy: (times: number) => Math.min(times * 100, 3000),
-        });
-
-        this.redis.on('connect', () => {
-            this.logger.info('Valkey EventStore conectado');
-        });
-
-        this.redis.on('error', (err: Error) => {
-            this.logger.error({ err }, 'Erro na conexão com Valkey');
-        });
-
+    constructor({ redis, logger }: ValkeyEventStoreOptions) {
+        this.redis = redis;
         this.logger = logger;
     }
 
@@ -64,7 +52,17 @@ export class ValkeyEventStore {
         pipeline.rpush(streamKey, eventId);
         pipeline.expire(streamKey, TTL_SECONDS);
 
-        await pipeline.exec();
+        const results = await pipeline.exec();
+
+        // Verifica se algum comando do pipeline falhou
+        if (results) {
+            for (const [err] of results) {
+                if (err) {
+                    this.logger.error({ streamId, eventId, err }, 'Erro ao armazenar evento no Valkey');
+                    throw err;
+                }
+            }
+        }
 
         this.logger.debug(
             { streamId, eventId },

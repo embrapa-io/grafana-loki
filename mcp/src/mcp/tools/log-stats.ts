@@ -11,7 +11,7 @@ import type { EnvConfig } from '../../config/env.js';
 import { LokiClient } from '../../loki/client.js';
 import type { LokiMatrixResult } from '../../loki/types.js';
 import type { ScopeResolver } from '../../scope/resolver.js';
-import { buildStatsLogQL, buildErrorRateLogQL, sinceToStartTime } from '../../loki/query-builder.js';
+import { buildStatsLogQL, buildErrorRateLogQL, sinceToStartTime, parseSince } from '../../loki/query-builder.js';
 import { getAuth } from './helpers.js';
 
 export interface RegisterLogStatsOptions {
@@ -130,7 +130,9 @@ export function registerLogStatsTools(
                 error_lines: errorLines,
                 error_rate: `${errorRate}%`,
                 stage_distribution: stageDistribution,
-                retention_note: 'Logs disponíveis conforme política de retenção do Loki.',
+                retention_note: parseSince(since) > 72 * 60 * 60 * 1000
+                    ? 'Atenção: período solicitado pode exceder a retenção configurada no Loki. Dados podem estar incompletos.'
+                    : 'Logs disponíveis conforme política de retenção do Loki.',
             };
 
             return {

@@ -37,7 +37,7 @@ export function registerQueryLogsTools(
                 search: z.string().optional().describe('Texto para buscar nos logs (opcional)'),
                 level: z.string().optional().describe('Nível de log para filtrar (ex: "ERROR", "WARN")'),
                 since: z.string().optional().describe('Período de busca (ex: "1h", "24h", "7d"). Padrão: "1h"'),
-                limit: z.number().int().min(1).max(1000).optional().describe('Máximo de linhas (padrão: 100)'),
+                limit: z.number().int().min(1).max(500).optional().describe('Máximo de linhas (padrão: 100, máximo: 500)'),
                 max_per_line: z.number().int().min(10).max(1000).optional().describe('Máximo de caracteres por linha (padrão: 100)'),
                 direction: z.enum(['forward', 'backward']).optional().describe('Ordem temporal: "forward" (mais antigo primeiro) ou "backward" (mais recente primeiro). Padrão: "backward"'),
             }),
